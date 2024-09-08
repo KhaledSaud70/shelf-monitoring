@@ -1,0 +1,8 @@
+__pycache__/
+wandb/
+logs/
+notebooks/
+camera_data/
+test_set/
+training_set/
+weights/
