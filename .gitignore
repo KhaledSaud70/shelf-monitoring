@@ -6,3 +6,4 @@ camera_data/
 test_set/
 training_set/
 weights/
+logs/
