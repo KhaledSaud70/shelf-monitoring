@@ -76,8 +76,6 @@ class SHAPEDataset(Dataset):
 
         if self.transform:
             img = self.transform(img)
-        if self.target_transform:
-            target = self.target_transform(target)
 
         return img, target
 

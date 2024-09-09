@@ -13,14 +13,15 @@ import models
 import losses
 import time
 
-# import wandb
-# import torch.utils.tensorboard
+import wandb
+import torch.utils.tensorboard
 
 from torchvision import transforms
 from util import (
     AverageMeter,
     NViewTransform,
     accuracy,
+    log_and_print,
     ensure_dir,
     set_seed,
     arg2bool,
@@ -174,13 +175,15 @@ def build_data(cfg):
         print(len(train_dataset), "training images")
 
     elif cfg.dataset == "shape":
-        train_dataset = data.SHAPEDataset(root=os.path.join(cfg.data_dir, "training_set.zip"), transform=T_train)
-        cfg.num_classes = train_dataset.num_classes
+        train_dataset = data.SHAPEDataset(root=os.path.join(cfg.data_dir, "training_set"), transform=T_train)
+
+        cfg.num_classes = len(train_dataset.classes)
+        class_to_idx = train_dataset.class_to_idx
         train_dataset = data.MapDataset(train_dataset, lambda x, y: (x, y, 0))
         print(len(train_dataset), "training images")
 
         test_dataset = data.SHAPEDataset(
-            root=os.path.join(cfg.data_dir, "test_set.zip"), transform=T_test, class_to_idx=train_dataset.class_to_idx
+            root=os.path.join(cfg.data_dir, "test_set"), transform=T_test, class_to_idx=class_to_idx
         )
         test_dataset = data.MapDataset(test_dataset, lambda x, y: (x, y, 0))
         print(len(test_dataset), "test images")
@@ -192,6 +195,17 @@ def build_data(cfg):
     test_loader = torch.utils.data.DataLoader(
         test_dataset, batch_size=cfg.batch_size, shuffle=False, num_workers=cfg.num_workers, persistent_workers=True
     )
+
+    debug = True
+    if debug:
+        # Extract only one batch for debugging
+        train_loader_iter = iter(train_loader)
+        test_loader_iter = iter(test_loader)
+
+        train_loader = [next(train_loader_iter)]
+        test_loader = [next(test_loader_iter)]
+
+        return train_loader, test_loader
 
     return train_loader, test_loader
 
@@ -283,7 +297,6 @@ def train(train_loader, model, criterion, optimizers, cfg, epoch, scaler=None):
 
     t1 = time.time()
     for idx, (images, labels, bias_labels) in enumerate(train_loader):
-        print(f"IMAGES {images[0].shape}, LABELS {labels}")
         data_time.update(time.time() - t1)
 
         images = torch.cat(images, dim=0)
@@ -306,7 +319,6 @@ def train(train_loader, model, criterion, optimizers, cfg, epoch, scaler=None):
                 logits = torch.cat([f.unsqueeze(1) for f in logits], dim=1)
 
                 running_nce = criterion(projected, feats[:, 0], logits, labels, bias_labels)
-                print(logits.shape, labels)
                 running_ce = F.cross_entropy(logits[:, 0], labels)
 
                 running_loss = running_nce
@@ -359,9 +371,9 @@ def train(train_loader, model, criterion, optimizers, cfg, epoch, scaler=None):
 
     all_outputs = torch.cat(all_outputs)
     all_labels = torch.cat(all_labels)
-    accuracy_train = accuracy(all_outputs, all_labels)[0]
+    topk_acc_train = accuracy(all_outputs, all_labels, topk=(1, 5, 10))
 
-    return loss.avg, accuracy_train, batch_time.avg, data_time.avg
+    return loss.avg, topk_acc_train, batch_time.avg, data_time.avg
 
 
 def measure_similarity(feat, labels, bias_labels):
@@ -465,12 +477,12 @@ def test(test_loader, model, criterion, cfg):
     negative_aligned_sim = torch.cat(negative_aligned_sim)
     negative_conflicting_sim = torch.cat(negative_conflicting_sim)
 
-    accuracy_test = accuracy(all_outputs, all_labels)[0]
-    print(f"FC test accuracy: {accuracy_test:.2f}")
+    topk_acc_test = accuracy(all_outputs, all_labels, topk=(1, 5, 10))
+    print(f"FC test top1: {topk_acc_test[0]:.2f} | top5: {topk_acc_test[1]:.2f} | top10: {topk_acc_test[2]:.2f}")
 
     return (
         loss.avg,
-        accuracy_test,
+        topk_acc_test,
         (aligned_sim, aligned_similarity.avg),
         (conflicting_sim, conflicting_similarity.avg),
         (negative_aligned_sim, negative_aligned_similarity.avg),
@@ -505,6 +517,10 @@ if __name__ == "__main__":
             cfg.warmup_to = cfg.lr
 
     ensure_dir(cfg.log_dir)
+    log_file = os.path.join(cfg.log_dir, f"log.txt")
+    with open(log_file, "w") as f:  # open for writing to clear the file
+        pass
+
     method = cfg.method
     if cfg.selfsup:
         method = f"{method}_self"
@@ -527,14 +543,14 @@ if __name__ == "__main__":
     cfg.optimizer_class = optimizer.__class__.__name__
     cfg.scheduler = scheduler.__class__.__name__ if scheduler is not None else None
 
-    # wandb.init(project="product-recognition", config=cfg, name=run_name, sync_tensorboard=True)
+    wandb.init(project="product-recognition", config=cfg, name=run_name, sync_tensorboard=True)
     print("Config:", cfg)
     print("Model:", model)
     print("Criterion:", infonce)
     print("Optimizer:", optimizer)
     print("Scheduler:", scheduler)
 
-    # writer = torch.utils.tensorboard.writer.SummaryWriter(tb_dir)
+    writer = torch.utils.tensorboard.writer.SummaryWriter(tb_dir)
 
     def target_loss(projected, labels):
         if cfg.selfsup:
@@ -565,23 +581,26 @@ if __name__ == "__main__":
     best_acc = 0.0
     for epoch in range(1, cfg.epochs + 1):
         t1 = time.time()
-        loss_train, accuracy_train, batch_time, data_time = train(
+        loss_train, topk_acc_train, batch_time, data_time = train(
             train_loader, model, criterion, (optimizer, optimizer_fc), cfg, epoch, scaler
         )
         t2 = time.time()
 
-        # writer.add_scalar("train/lr", optimizer.param_groups[0]["lr"], epoch)
-        # writer.add_scalar("train/loss", loss_train, epoch)
-        # writer.add_scalar("train/acc@1", accuracy_train, epoch)
-        # if "auto" in cfg.method:
-        #     writer.add_scalar("train/epsilon", infonce.epsilon, epoch)
+        writer.add_scalar("train/lr", optimizer.param_groups[0]["lr"], epoch)
+        writer.add_scalar("train/loss", loss_train, epoch)
+        writer.add_scalar("train/acc@1", topk_acc_train, epoch)
+        if "auto" in cfg.method:
+            writer.add_scalar("train/epsilon", infonce.epsilon, epoch)
 
-        # writer.add_scalar("BT", batch_time, epoch)
-        # writer.add_scalar("DT", data_time, epoch)
-        print(
-            f"epoch {epoch}, total time {t2-start_time:.2f}, epoch time {t2-t1:.3f} "
-            f"acc {accuracy_train:.2f} loss {loss_train:.4f}"
+        writer.add_scalar("BT", batch_time, epoch)
+        writer.add_scalar("DT", data_time, epoch)
+        message = (
+            f"\nepoch {epoch} | total time {t2-start_time:.2f} | epoch time {t2-t1:.3f} | "
+            f"top1 {topk_acc_train[0]:.2f} | top5 {topk_acc_train[1]:.2f} | "
+            f"top10 {topk_acc_train[2]:.2f} | loss {loss_train:.4f}"
         )
+
+        log_and_print(message, log_file)
 
         if scheduler is not None:
             scheduler.step()
@@ -604,38 +623,42 @@ if __name__ == "__main__":
                 )
 
         if (epoch % cfg.test_freq == 0) or epoch == 1 or epoch == cfg.epochs:
-            loss_test, accuracy_test, aligned_sim, conflicting_sim, negative_aligned_sim, negative_conflicting_sim = (
+            loss_test, topk_acc_test, aligned_sim, conflicting_sim, negative_aligned_sim, negative_conflicting_sim = (
                 test(test_loader, model, criterion, cfg)
             )
 
-            # writer.add_scalar("test/loss", loss_test, epoch)
-            # writer.add_scalar("test/acc@1", accuracy_test, epoch)
-            print(f"test accuracy {accuracy_test:.2f}")
+            writer.add_scalar("test/loss", loss_test, epoch)
+            writer.add_scalar("test/acc@1", topk_acc_test, epoch)
+            message = f"Test Accuracy top1: {topk_acc_test[0]:.2f} | top5: {topk_acc_test[1]:.2f} | top10: {topk_acc_test[2]:.2f} | loss {loss_test:.4f}"
+            log_and_print(message, log_file)
 
-            print(
+            message = (
                 f"""pos-aligned sim {aligned_sim[1]:.4f}, pos-conflict sim {conflicting_sim[1]:.4f}, """
                 f"""neg-aligned sim {negative_aligned_sim[1]:.4f} neg-conflict sim {negative_conflicting_sim[1]:.4f}"""
             )
-            # writer.add_scalar("test/aligned_sim_mean", aligned_sim[1], epoch)
-            # writer.add_scalar("test/conflicting_sim_mean", conflicting_sim[1], epoch)
-            # writer.add_scalar("test/negative_aligned_sim_mean", negative_aligned_sim[1])
-            # writer.add_scalar("test/negative_conflicting_sim_mean", negative_conflicting_sim[1])
+            log_and_print(message, log_file)
+            writer.add_scalar("test/aligned_sim_mean", aligned_sim[1], epoch)
+            writer.add_scalar("test/conflicting_sim_mean", conflicting_sim[1], epoch)
+            writer.add_scalar("test/negative_aligned_sim_mean", negative_aligned_sim[1])
+            writer.add_scalar("test/negative_conflicting_sim_mean", negative_conflicting_sim[1])
 
-            # try:
-            #     writer.add_histogram("test/aligned_sim", aligned_sim[0], epoch, bins=256, max_bins=512)
-            #     writer.add_histogram("test/conflicting_sim", conflicting_sim[0], epoch, bins=256, max_bins=512)
-            #     writer.add_histogram(
-            #         "test/negative_aligned_sim", negative_aligned_sim[0], epoch, bins=256, max_bins=512
-            #     )
-            #     writer.add_histogram(
-            #         "test/negative_conflicting_sim", negative_conflicting_sim[0], epoch, bins=256, max_bins=512
-            #     )
-            # except:
-            #     pass
+            try:
+                writer.add_histogram("test/aligned_sim", aligned_sim[0], epoch, bins=256, max_bins=512)
+                writer.add_histogram("test/conflicting_sim", conflicting_sim[0], epoch, bins=256, max_bins=512)
+                writer.add_histogram(
+                    "test/negative_aligned_sim", negative_aligned_sim[0], epoch, bins=256, max_bins=512
+                )
+                writer.add_histogram(
+                    "test/negative_conflicting_sim", negative_conflicting_sim[0], epoch, bins=256, max_bins=512
+                )
+            except:
+                pass
 
-            if accuracy_test > best_acc:
-                best_acc = accuracy_test
+            top1_test_acc = topk_acc_test[0]
+            if top1_test_acc > best_acc:
+                best_acc = top1_test_acc
 
-        # writer.add_scalar("best_acc@1", best_acc, epoch)
+        writer.add_scalar("best_acc@1", best_acc, epoch)
 
-    print(f"best accuracy: {best_acc:.2f}")
+    message = f"Best Accuracy (top1): {best_acc:.2f}"
+    log_and_print(message, log_file)

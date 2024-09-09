@@ -1,16 +1,16 @@
 program: train.py
-backbone: resnet18
+backbone: timm-mobilenetv3_large_100.ra_in1k
 dataset: shape
 data_dir: data/
 output_dir: ./weights
 # checkpoint:
 
-batch_size: 1
-save_every: 50
-epochs: 100
+batch_size: 64
+save_every: 10
+epochs: 30
 
 epsilon: 0
-lr: 0.01
+lr: 0.001
 lr_decay: step
-lr_decay_epochs: 33,66
+lr_decay_epochs: 10,20
 n_views: 2
