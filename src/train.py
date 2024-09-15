@@ -152,7 +152,7 @@ def build_data(cfg):
         T_train = NViewTransform(T_train, cfg.n_views)
 
     if cfg.dataset == "danube":
-        test_split = 0.1
+        test_split = 0.0
 
         train_dataset = data.DanubeDataset(data_dir=cfg.data_dir, transform=T_train)
         cfg.num_classes = train_dataset.num_classes
@@ -192,20 +192,12 @@ def build_data(cfg):
         train_dataset, batch_size=cfg.batch_size, shuffle=True, num_workers=cfg.num_workers, persistent_workers=True
     )
 
+    if cfg.dataset == "danube":
+        return train_loader, None
+
     test_loader = torch.utils.data.DataLoader(
         test_dataset, batch_size=cfg.batch_size, shuffle=False, num_workers=cfg.num_workers, persistent_workers=True
     )
-
-    debug = True
-    if debug:
-        # Extract only one batch for debugging
-        train_loader_iter = iter(train_loader)
-        test_loader_iter = iter(test_loader)
-
-        train_loader = [next(train_loader_iter)]
-        test_loader = [next(test_loader_iter)]
-
-        return train_loader, test_loader
 
     return train_loader, test_loader
 
@@ -588,7 +580,7 @@ if __name__ == "__main__":
 
         writer.add_scalar("train/lr", optimizer.param_groups[0]["lr"], epoch)
         writer.add_scalar("train/loss", loss_train, epoch)
-        writer.add_scalar("train/acc@1", topk_acc_train, epoch)
+        writer.add_scalar("train/acc@1", topk_acc_train[0], epoch)
         if "auto" in cfg.method:
             writer.add_scalar("train/epsilon", infonce.epsilon, epoch)
 
@@ -622,43 +614,43 @@ if __name__ == "__main__":
                     checkpoint_path,
                 )
 
-        if (epoch % cfg.test_freq == 0) or epoch == 1 or epoch == cfg.epochs:
-            loss_test, topk_acc_test, aligned_sim, conflicting_sim, negative_aligned_sim, negative_conflicting_sim = (
-                test(test_loader, model, criterion, cfg)
-            )
+    #     if (epoch % cfg.test_freq == 0) or epoch == 1 or epoch == cfg.epochs:
+    #         loss_test, topk_acc_test, aligned_sim, conflicting_sim, negative_aligned_sim, negative_conflicting_sim = (
+    #             test(test_loader, model, criterion, cfg)
+    #         )
 
-            writer.add_scalar("test/loss", loss_test, epoch)
-            writer.add_scalar("test/acc@1", topk_acc_test, epoch)
-            message = f"Test Accuracy top1: {topk_acc_test[0]:.2f} | top5: {topk_acc_test[1]:.2f} | top10: {topk_acc_test[2]:.2f} | loss {loss_test:.4f}"
-            log_and_print(message, log_file)
+    #         writer.add_scalar("test/loss", loss_test, epoch)
+    #         writer.add_scalar("test/acc@1", topk_acc_test[0], epoch)
+    #         message = f"Test Accuracy top1: {topk_acc_test[0]:.2f} | top5: {topk_acc_test[1]:.2f} | top10: {topk_acc_test[2]:.2f} | loss {loss_test:.4f}"
+    #         log_and_print(message, log_file)
 
-            message = (
-                f"""pos-aligned sim {aligned_sim[1]:.4f}, pos-conflict sim {conflicting_sim[1]:.4f}, """
-                f"""neg-aligned sim {negative_aligned_sim[1]:.4f} neg-conflict sim {negative_conflicting_sim[1]:.4f}"""
-            )
-            log_and_print(message, log_file)
-            writer.add_scalar("test/aligned_sim_mean", aligned_sim[1], epoch)
-            writer.add_scalar("test/conflicting_sim_mean", conflicting_sim[1], epoch)
-            writer.add_scalar("test/negative_aligned_sim_mean", negative_aligned_sim[1])
-            writer.add_scalar("test/negative_conflicting_sim_mean", negative_conflicting_sim[1])
+    #         message = (
+    #             f"""pos-aligned sim {aligned_sim[1]:.4f}, pos-conflict sim {conflicting_sim[1]:.4f}, """
+    #             f"""neg-aligned sim {negative_aligned_sim[1]:.4f} neg-conflict sim {negative_conflicting_sim[1]:.4f}"""
+    #         )
+    #         log_and_print(message, log_file)
+    #         writer.add_scalar("test/aligned_sim_mean", aligned_sim[1], epoch)
+    #         writer.add_scalar("test/conflicting_sim_mean", conflicting_sim[1], epoch)
+    #         writer.add_scalar("test/negative_aligned_sim_mean", negative_aligned_sim[1])
+    #         writer.add_scalar("test/negative_conflicting_sim_mean", negative_conflicting_sim[1])
 
-            try:
-                writer.add_histogram("test/aligned_sim", aligned_sim[0], epoch, bins=256, max_bins=512)
-                writer.add_histogram("test/conflicting_sim", conflicting_sim[0], epoch, bins=256, max_bins=512)
-                writer.add_histogram(
-                    "test/negative_aligned_sim", negative_aligned_sim[0], epoch, bins=256, max_bins=512
-                )
-                writer.add_histogram(
-                    "test/negative_conflicting_sim", negative_conflicting_sim[0], epoch, bins=256, max_bins=512
-                )
-            except:
-                pass
+    #         try:
+    #             writer.add_histogram("test/aligned_sim", aligned_sim[0], epoch, bins=256, max_bins=512)
+    #             writer.add_histogram("test/conflicting_sim", conflicting_sim[0], epoch, bins=256, max_bins=512)
+    #             writer.add_histogram(
+    #                 "test/negative_aligned_sim", negative_aligned_sim[0], epoch, bins=256, max_bins=512
+    #             )
+    #             writer.add_histogram(
+    #                 "test/negative_conflicting_sim", negative_conflicting_sim[0], epoch, bins=256, max_bins=512
+    #             )
+    #         except:
+    #             pass
 
-            top1_test_acc = topk_acc_test[0]
-            if top1_test_acc > best_acc:
-                best_acc = top1_test_acc
+    #         top1_test_acc = topk_acc_test[0]
+    #         if top1_test_acc > best_acc:
+    #             best_acc = top1_test_acc
 
-        writer.add_scalar("best_acc@1", best_acc, epoch)
+    #     writer.add_scalar("best_acc@1", best_acc, epoch)
 
-    message = f"Best Accuracy (top1): {best_acc:.2f}"
-    log_and_print(message, log_file)
+    # message = f"Best Accuracy (top1): {best_acc:.2f}"
+    # log_and_print(message, log_file)
