@@ -525,7 +525,7 @@ if __name__ == "__main__":
         f"lr{cfg.lr}_{cfg.lr_decay}_t{cfg.temp}_eps{cfg.epsilon}_"
         f"lr-eps{cfg.lr_epsilon}_feat{cfg.features_dim}_"
         f"{'identity_' if cfg.train_on_head else 'head_'}"
-        f"alpha{cfg.alpha}_beta{cfg.beta}_lambda{cfg.lambd}_kld{cfg.kld}_"  # remove {cfg.dist}_
+        f"alpha{cfg.alpha}_beta{cfg.beta}_lambda{cfg.lambd}_kld{cfg.kld}_"
         f"mlp_lr{cfg.mlp_lr}_mlp_optimizer_{cfg.mlp_optimizer}_"
         f"trial{cfg.trial}"
     )
