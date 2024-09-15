@@ -1,34 +1,34 @@
+import argparse
 import datetime
 import math
 import os
 import random
+import time
+from pathlib import Path
+
 import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.utils.data
-import argparse
-from pathlib import Path
-import data
-import models
-import losses
-import time
-
-import wandb
 import torch.utils.tensorboard
-
+import wandb
 from torchvision import transforms
+
+import data
+import losses
+import models
+from lars import LARS
 from util import (
     AverageMeter,
     NViewTransform,
     accuracy,
-    log_and_print,
-    ensure_dir,
-    set_seed,
     arg2bool,
-    warmup_learning_rate,
+    ensure_dir,
+    log_and_print,
     save_on_master,
+    set_seed,
+    warmup_learning_rate,
 )
-from lars import LARS
 
 
 def parse_arguments():
