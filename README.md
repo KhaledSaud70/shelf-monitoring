@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="images/logo.JPG" alt="ALLaM Challenge Logo" width="600"> <br>
+  <img src="images/logo.JPG" alt="Logo" width="600"> <br>
 </p>
 
 
