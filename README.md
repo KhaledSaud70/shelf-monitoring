@@ -1,9 +1,15 @@
+<p align="center">
+  <img src="images/logo.JPG" alt="ALLaM Challenge Logo" width="600"> <br>
+</p>
+
+
+
 ## RetailEye<br><sub>Supervised Contrastive Learning with Compliance Matching for Retail Shelf Monitoring</sub>
 
 <div align="center">
-  <img src="images/retaileye-fig1.png"> <br>
+  <img src="images/retaileye-fig2.png"> <br>
   <hr style="width:50%;border:1px solid #ccc;"> <br>
-  <img src="images/retaileye-fig2.png">
+  <img src="images/dashboard.JPG">
 </div>
 
 >[Supervised Contrastive Learning with Compliance Matching for Retail Shelf Monitoring](docs/ICONIP2024_G01_Retail__CR_.pdf)<br>
