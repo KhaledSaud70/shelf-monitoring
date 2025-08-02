@@ -12,7 +12,7 @@
   <img src="images/dashboard.JPG">
 </div>
 
->[Supervised Contrastive Learning with Compliance Matching for Retail Shelf Monitoring](docs/ICONIP2024_G01_Retail__CR_.pdf)<br>
+>[Supervised Contrastive Learning with Compliance Matching for Retail Shelf Monitoring](https://doi.org/10.1007/978-981-96-7036-9_17)<br>
 >[Khaled Almutairy](https://www.linkedin.com/in/khaledalmutairy)<sup>1</sup>, [Mamoun Alghaslan](https://www.linkedin.com/in/mamoun-alghaslan-96207188/)<sup>1</sup>, [El-Sayed M. El-Alfy](https://scholar.google.com/citations?hl=en&user=2a51Yt8AAAAJ&view_op=list_works&sortby=pubdate)<sup>1,2, 3</sup> [Abdul-Jabbar Siddiqui](https://scholar.google.com/citations?user=uGRWGTwAAAAJ&hl=en)<sup>2, 3, 4</sup><br>
 <sup>1</sup>Information and Computer Science, King Fahd University of Petroleum and Minerals, Saudi Arabia   
 <sup>2</sup>Computer Engineering Department   
